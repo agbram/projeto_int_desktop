@@ -1,0 +1,45 @@
+{
+  "name": "ti-dev-electron-react-projeto-equipe",
+  "version": "1.0.0",
+  "description": "Turma: TI43\r Duração planejada: 4–5 encontros\r Avaliação: individual, em um repositório comum (cada estudante implementa funcionalidades pequenas e independentes)",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "npm run build:electron && concurrently \"npm run dev:renderer\" \"npm run watch:electron\" \"electronmon .\"",
+    "dev:renderer": "npm run dev --prefix src/renderer",
+    "watch:electron": "tsc -p tsconfig.electron.json --watch",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build": "npm run build:electron && npm run build --prefix src/renderer"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/senacsp-car/ti-dev-electron-react-projeto-equipe.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/senacsp-car/ti-dev-electron-react-projeto-equipe/issues"
+  },
+  "homepage": "https://github.com/senacsp-car/ti-dev-electron-react-projeto-equipe#readme",
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/electron": "^1.4.38",
+    "@types/node": "^25.3.0",
+    "concurrently": "^9.2.1",
+    "electron": "^40.6.0",
+    "electronmon": "^2.0.4",
+    "prettier": "^3.8.1",
+    "typescript": "^5.9.3"
+  },
+  "electron": {
+    "patterns": [
+      "!src/renderer/**"
+    ]
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.8.0"
+  }
+}
