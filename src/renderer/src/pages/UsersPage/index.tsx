@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Button, Modal, Form, Table } from 'react-bootstrap';
-import { Pencil, Trash, Plus } from '@phosphor-icons/react';
+import { Button, Modal, Form, Table, InputGroup, Alert } from 'react-bootstrap';
+import { Pencil, Trash, Plus, ArrowsClockwise, CopySimple, Eye, EyeSlash } from '@phosphor-icons/react';
 import toast, { Toaster } from 'react-hot-toast';
 import api from '../../services/api';
 
@@ -14,6 +14,8 @@ interface User {
   name: string;
   email: string;
   phone?: string;
+  isActive: boolean;
+  lastSeen?: string;
   groups?: UserGroup[];
   group?: UserGroup[];
 }
@@ -25,20 +27,44 @@ interface FormData {
   password: string;
   phone: string;
   group: number;
+  isActive: boolean;
 }
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState<FormData>({ id: 0, name: '', email: '', password: '', phone: '', group: 1 });
+  const [formData, setFormData] = useState<FormData>({ id: 0, name: '', email: '', password: '', phone: '', group: 1, isActive: true });
+  const [showPassword, setShowPassword] = useState(false);
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
+
+  // Gera uma senha aleatória segura de 10 caracteres
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$';
+    let pwd = '';
+    for (let i = 0; i < 10; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setFormData({ ...formData, password: pwd });
+    setGeneratedPassword(pwd);
+    setShowPassword(true);
+    toast.success('Senha gerada! Copie e passe para o funcionário.');
+  };
+
+  const copyPassword = () => {
+    if (generatedPassword) {
+      navigator.clipboard.writeText(generatedPassword);
+      toast.success('Senha copiada!');
+    }
+  };
 
   const fetchUsers = async () => {
     try {
       const response = await api.get('/users');
       setUsers(Array.isArray(response.data) ? response.data : []);
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error('Erro na listagem:', error);
-      toast.error('Erro ao buscar usuários do servidor backend.');
+      const msg = error.response?.data?.error || 'Servidor inacessível ou erro no Banco.';
+      toast.error(`Erro: ${msg}`);
     }
   };
 
@@ -51,26 +77,53 @@ export default function UsersPage() {
       // Pela estrutura do Prisma: user.groups[0].groupId
       const userGroups = user.groups || user.group || [];
       const groupId = userGroups.length > 0 ? userGroups[0].groupId : 1;
-      setFormData({ id: user.id, name: user.name, email: user.email, password: '', phone: user.phone || '', group: groupId });
+      setFormData({ 
+        id: user.id, 
+        name: user.name, 
+        email: user.email, 
+        password: '', 
+        phone: user.phone || '', 
+        group: groupId,
+        isActive: user.isActive !== undefined ? user.isActive : true
+      });
     } else {
-      setFormData({ id: 0, name: '', email: '', password: '', phone: '', group: 1 });
+      setFormData({ id: 0, name: '', email: '', password: '', phone: '', group: 1, isActive: true });
     }
+    setGeneratedPassword(null);
+    setShowPassword(false);
     setShowModal(true);
   };
 
-  const handleCloseModal = () => setShowModal(false);
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setGeneratedPassword(null);
+    setShowPassword(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       // Mapeia para os campos que o backend (projetoIntegrador_uc13) espera
-      const payload = {
+      const payload: Record<string, any> = {
         name: formData.name,
-        email: formData.email,
         phone: formData.phone,
-        senha: formData.password,
         group: formData.group,
       };
+
+      // O backend restringe a alteração de email e desativação do Admin (id 1)
+      if (formData.id !== 1) {
+        payload.email = formData.email;
+        payload.isActive = formData.isActive;
+      } else if (!formData.id) {
+        // Se for criação de novo usuário, envia tudo
+        payload.email = formData.email;
+        payload.isActive = formData.isActive;
+      }
+
+      // Só envia a senha se o admin digitou uma nova
+      if (formData.password.trim()) {
+        payload.senha = formData.password;
+      }
 
       if (formData.id) {
         await api.put(`/users/${formData.id}`, payload);
@@ -105,9 +158,14 @@ export default function UsersPage() {
       <Toaster />
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2>Gerenciamento de Usuários</h2>
-        <Button variant="primary" onClick={() => handleOpenModal()}>
-          <Plus size={20} className="me-2"/> Cadastrar Usuário
-        </Button>
+        <div>
+          <Button variant="outline-secondary" onClick={fetchUsers} className="me-2" title="Atualizar Lista">
+            <ArrowsClockwise size={20} />
+          </Button>
+          <Button variant="primary" onClick={() => handleOpenModal()}>
+            <Plus size={20} className="me-2"/> Cadastrar Usuário
+          </Button>
+        </div>
       </div>
 
       <Table striped bordered hover responsive>
@@ -116,8 +174,9 @@ export default function UsersPage() {
             <th>ID</th>
             <th>Nome</th>
             <th>Email</th>
-            <th>Telefone</th>
             <th>Grupo</th>
+            <th>Status</th>
+            <th>Presença</th>
             <th className="text-center">Ações</th>
           </tr>
         </thead>
@@ -127,7 +186,6 @@ export default function UsersPage() {
               <td className="align-middle">{user.id}</td>
               <td className="align-middle">{user.name}</td>
               <td className="align-middle">{user.email}</td>
-              <td className="align-middle">{user.phone}</td>
               <td className="align-middle">
                 {(() => {
                   const groups = user.groups || user.group || [];
@@ -136,13 +194,38 @@ export default function UsersPage() {
                     : 'Sem Grupo';
                 })()}
               </td>
+              <td className="align-middle">
+                {user.isActive ? (
+                  <span className="badge bg-success">Ativo</span>
+                ) : (
+                  <span className="badge bg-danger">Bloqueado</span>
+                )}
+              </td>
+              <td className="align-middle">
+                {(() => {
+                  if (!user.lastSeen) return <span className="text-muted">Nunca logou</span>;
+                  const lastSeenDate = new Date(user.lastSeen);
+                  const diffMinutes = (new Date().getTime() - lastSeenDate.getTime()) / 60000;
+                  return diffMinutes < 10 ? (
+                    <span className="text-success fw-bold">● Online</span>
+                  ) : (
+                    <span className="text-muted">Offline ({lastSeenDate.toLocaleDateString()})</span>
+                  );
+                })()}
+              </td>
               <td className="text-center">
-                <Button variant="warning" size="sm" className="me-2" onClick={() => handleOpenModal(user)}>
-                  <Pencil size={18} />
-                </Button>
-                <Button variant="danger" size="sm" onClick={() => handleDelete(user.id)}>
-                  <Trash size={18} />
-                </Button>
+                {user.id === 1 ? (
+                  <span className="badge bg-secondary">🔒 Protegido</span>
+                ) : (
+                  <>
+                    <Button variant="warning" size="sm" className="me-2" onClick={() => handleOpenModal(user)}>
+                      <Pencil size={18} />
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={() => handleDelete(user.id)}>
+                      <Trash size={18} />
+                    </Button>
+                  </>
+                )}
               </td>
             </tr>
           ))}
@@ -174,19 +257,41 @@ export default function UsersPage() {
               <Form.Control
                 type="email"
                 required
+                disabled={formData.id === 1}
                 value={formData.email}
                 onChange={e => setFormData({ ...formData, email: e.target.value })}
               />
+              {formData.id === 1 && (
+                <Form.Text className="text-muted">
+                  O email do administrador principal não pode ser alterado.
+                </Form.Text>
+              )}
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Senha</Form.Label>
-              <Form.Control
-                type="password"
-                required={!formData.id}
-                placeholder={formData.id ? 'Mantenha a mesma caso não queira alterar...' : ''}
-                value={formData.password}
-                onChange={e => setFormData({ ...formData, password: e.target.value })}
-              />
+              <InputGroup>
+                <Form.Control
+                  type={showPassword ? 'text' : 'password'}
+                  required={!formData.id}
+                  placeholder={formData.id ? 'Mantenha a mesma caso não queira alterar...' : 'Clique em Gerar Senha'}
+                  value={formData.password}
+                  onChange={e => { setFormData({ ...formData, password: e.target.value }); setGeneratedPassword(null); }}
+                />
+                <Button variant="outline-secondary" onClick={() => setShowPassword(!showPassword)} title={showPassword ? 'Ocultar' : 'Mostrar'}>
+                  {showPassword ? <EyeSlash size={18} /> : <Eye size={18} />}
+                </Button>
+                <Button variant="outline-primary" onClick={generatePassword} title="Gerar senha automática">
+                  <ArrowsClockwise size={18} /> Gerar
+                </Button>
+              </InputGroup>
+              {generatedPassword && (
+                <Alert variant="info" className="mt-2 d-flex align-items-center justify-content-between py-2 px-3" style={{ fontSize: '0.9rem' }}>
+                  <span><strong>Senha gerada:</strong> <code style={{ fontSize: '1rem' }}>{generatedPassword}</code></span>
+                  <Button variant="outline-info" size="sm" onClick={copyPassword}>
+                    <CopySimple size={16} className="me-1" /> Copiar
+                  </Button>
+                </Alert>
+              )}
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Telefone</Form.Label>
@@ -202,10 +307,25 @@ export default function UsersPage() {
                 value={formData.group}
                 onChange={e => setFormData({ ...formData, group: parseInt(e.target.value) })}
               >
-                <option value={1}>Administradores (ADM)</option>
-                <option value={2}>Vendedores</option>
-                <option value={3}>Produção</option>
+                <option value={1}>Administrador (ADM)</option>
+                <option value={2}>Confeiteira</option>
+                <option value={3}>Atendente</option>
               </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Check 
+                type="switch"
+                id="active-switch"
+                label={formData.isActive ? "Conta Ativa" : "Conta Bloqueada"}
+                checked={formData.isActive}
+                disabled={formData.id === 1}
+                onChange={e => setFormData({ ...formData, isActive: e.target.checked })}
+              />
+              {formData.id === 1 && (
+                <Form.Text className="text-muted">
+                  O administrador principal não pode ser desativado.
+                </Form.Text>
+              )}
             </Form.Group>
           </Modal.Body>
           <Modal.Footer>

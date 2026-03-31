@@ -6,6 +6,7 @@ function createWindow() {
     show: false,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
+      webSecurity: false, // Permite requisições HTTP cross-origin (necessário para acessar a API local)
     },
   });
 

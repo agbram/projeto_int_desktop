@@ -25,6 +25,15 @@ export default function LoginPage({ onLogin }: { onLogin: (user: LoggedUser) => 
       localStorage.setItem('token', token);
 
       const payload = JSON.parse(window.atob(token.split('.')[1]));
+      
+      // Restringe o acesso do Electron apenas ao usuário seed (ID 1 - Administrador Mestre)
+      if (payload.sub !== 1) {
+        localStorage.removeItem('token');
+        setLoading(false);
+        toast.error('Acesso Negado: Apenas o Administrador Mestre pode acessar o painel desktop.');
+        return;
+      }
+
       const user: LoggedUser = {
         name: payload.name,
         email: payload.email,
