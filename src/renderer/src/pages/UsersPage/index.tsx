@@ -37,17 +37,15 @@ export default function UsersPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
 
-  // Gera uma senha aleatória segura de 10 caracteres
+  // Gera um PIN Numérico de 4 dígitos (Estilo Caixa Eletrônico)
   const generatePassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$';
-    let pwd = '';
-    for (let i = 0; i < 10; i++) {
-      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setFormData({ ...formData, password: pwd });
-    setGeneratedPassword(pwd);
+    // Número randômico entre 1000 e 9999
+    const pin = Math.floor(1000 + Math.random() * 9000).toString();
+    
+    setFormData({ ...formData, password: pin });
+    setGeneratedPassword(pin);
     setShowPassword(true);
-    toast.success('Senha gerada! Copie e passe para o funcionário.');
+    toast.success('PIN gerado! É como uma senha simples de banco.');
   };
 
   const copyPassword = () => {
